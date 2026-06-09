@@ -1,15 +1,9 @@
 """
-Geospatial Data Sanitation Pipeline — Zomato Delivery Edition
-==============================================================
 Detects GPS data quality issues in food delivery telemetry:
   • Null Island coordinates (GPS hardware failure returning 0,0)
   • Impossible delivery speeds (teleportation anomalies)
   • Negative / out-of-range coordinate signs (data corruption)
   • Missing critical fields
-
-Author: Mehak Jain
-GitHub: https://github.com/mehakjain-hub
-LinkedIn: https://www.linkedin.com/in/mehak-jain-901b7a229/
 """
 
 import numpy as np
@@ -18,10 +12,7 @@ from datetime import datetime
 import json
 import os
 
-
-# ─────────────────────────────────────────────
 # 1. HAVERSINE DISTANCE
-# ─────────────────────────────────────────────
 
 def haversine_distance(
     lat1: np.ndarray, lon1: np.ndarray,
@@ -29,14 +20,10 @@ def haversine_distance(
 ) -> np.ndarray:
     """
     Vectorised great-circle distance via the Haversine formula.
-
-    d = 2R · arcsin( √[ sin²(Δlat/2) + cos(lat₁)·cos(lat₂)·sin²(Δlon/2) ] )
-
     Parameters
     ----------
     lat1, lon1 : origin coordinates (degrees)
     lat2, lon2 : destination coordinates (degrees)
-
     Returns
     -------
     np.ndarray : distances in kilometres
@@ -47,17 +34,11 @@ def haversine_distance(
     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
     return 6371 * 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
 
-
-# ─────────────────────────────────────────────
 # 2. NULL ISLAND DETECTOR
-# ─────────────────────────────────────────────
 
 def detect_null_island(df: pd.DataFrame, threshold: float = 0.01) -> pd.DataFrame:
     """
     Flag rows where GPS coordinates are at or near (0, 0) — 'Null Island'.
-    This is the most common GPS hardware failure mode: the device returns
-    a default value of 0.0 when no satellite fix is obtained.
-
     Parameters
     ----------
     df        : DataFrame with Restaurant_latitude/longitude and
@@ -73,10 +54,7 @@ def detect_null_island(df: pd.DataFrame, threshold: float = 0.01) -> pd.DataFram
     df["null_island"] = rest_null | dlv_null
     return df
 
-
-# ─────────────────────────────────────────────
 # 3. COORDINATE RANGE VALIDATOR
-# ─────────────────────────────────────────────
 
 def validate_coordinates(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -85,17 +63,11 @@ def validate_coordinates(df: pd.DataFrame) -> pd.DataFrame:
       • Latitude outside ±90° or longitude outside ±180°
       • Negative coordinates for Indian cities
         (all major Indian cities have lat ∈ [8, 37], lon ∈ [68, 97])
-
-    The Zomato dataset contains entries with negative lat/lon values
-    which are physically impossible for Indian delivery locations.
     """
     df = df.copy()
-
-    # Standard out-of-range check
     def _invalid(lat_col, lon_col):
         null_mask = df[lat_col].isna() | df[lon_col].isna()
         range_mask = (df[lat_col].abs() > 90) | (df[lon_col].abs() > 180)
-        # Negative coords invalid for India
         neg_mask = (df[lat_col] < 0) | (df[lon_col] < 0)
         return null_mask | range_mask | neg_mask
 
@@ -104,28 +76,18 @@ def validate_coordinates(df: pd.DataFrame) -> pd.DataFrame:
     df["invalid_coords"]             = df["invalid_restaurant_coords"] | df["invalid_delivery_coords"]
     return df
 
-
-# ─────────────────────────────────────────────
 # 4. TELEPORTATION / SPEED ANOMALY DETECTOR
-# ─────────────────────────────────────────────
 
 def detect_speed_anomalies(df: pd.DataFrame, max_speed_kmh: float = 80) -> pd.DataFrame:
     """
     Flag deliveries where the implied average speed between restaurant
     and delivery location exceeds a physical threshold.
-
-    For Zomato's fleet (motorcycles, scooters, bicycles) a reasonable
-    ceiling is 80 km/h. Rows above this imply GPS coordinate corruption
-    rather than genuine movement.
-
     Parameters
     ----------
     df            : DataFrame with coordinate and time columns
     max_speed_kmh : speed ceiling (default 80 km/h)
     """
     df = df.copy()
-
-    # Only compute on rows with valid coordinates and positive time
     valid_mask = (
         ~df["invalid_coords"] &
         (df["Time_taken (min)"] > 0)
@@ -150,11 +112,8 @@ def detect_speed_anomalies(df: pd.DataFrame, max_speed_kmh: float = 80) -> pd.Da
         df.loc[valid_mask, "speed_anomaly"]        = speed > max_speed_kmh
 
     return df
-
-
-# ─────────────────────────────────────────────
+  
 # 5. MISSING CRITICAL FIELDS
-# ─────────────────────────────────────────────
 
 def detect_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -168,19 +127,10 @@ def detect_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     df["missing_field_count"]     = df[critical].isnull().sum(axis=1)
     return df
 
-
-# ─────────────────────────────────────────────
 # 6. PREP / LOADER
-# ─────────────────────────────────────────────
 
 def load_and_prep(path: str) -> pd.DataFrame:
-    """
-    Load the Zomato delivery CSV and lightly standardise column types.
-    Handles the dataset from:
-    kaggle.com/datasets/saurabhbadole/zomato-delivery-operations-analytics-dataset
-    """
     df = pd.read_csv(path)
-
     expected = {
         "ID", "Delivery_person_ID",
         "Restaurant_latitude", "Restaurant_longitude",
@@ -190,17 +140,11 @@ def load_and_prep(path: str) -> pd.DataFrame:
     missing = expected - set(df.columns)
     if missing:
         raise ValueError(f"CSV is missing expected columns: {missing}")
-
-    # Strip whitespace from string columns
     str_cols = df.select_dtypes("object").columns
     df[str_cols] = df[str_cols].apply(lambda c: c.str.strip() if c.dtype == "object" else c)
-
     return df
-
-
-# ─────────────────────────────────────────────
+  
 # 7. HEALTH REPORT
-# ─────────────────────────────────────────────
 
 def generate_health_report(df: pd.DataFrame, output_dir: str = "reports") -> dict:
     """
@@ -218,7 +162,6 @@ def generate_health_report(df: pd.DataFrame, output_dir: str = "reports") -> dic
     flag_cols = ["null_island", "invalid_coords", "speed_anomaly", "missing_critical_fields"]
     present   = [c for c in flag_cols if c in df.columns]
     any_flag  = df[present].any(axis=1).sum() if present else 0
-
     health_pct = round(100 * (1 - any_flag / max(total, 1)), 2)
 
     # Per-vehicle and per-city breakdown
@@ -230,7 +173,6 @@ def generate_health_report(df: pd.DataFrame, output_dir: str = "reports") -> dic
             .size()
             .to_dict()
         )
-
     city_health = {}
     if "City" in df.columns:
         city_health = (
@@ -253,50 +195,29 @@ def generate_health_report(df: pd.DataFrame, output_dir: str = "reports") -> dic
         "speed_anomalies_by_vehicle": vehicle_anomalies,
         "health_score_by_city":      city_health,
     }
-
     out_path = os.path.join(output_dir, "health_report.json")
     with open(out_path, "w") as f:
         json.dump(report, f, indent=2)
-
-    print(f"\n📊 Health Report → {out_path}")
+    print(f"\nHealth Report → {out_path}")
     return report
 
-
-# ─────────────────────────────────────────────
 # 8. FULL PIPELINE RUNNER
-# ─────────────────────────────────────────────
 
 def run_pipeline(
     df: pd.DataFrame,
     max_speed_kmh: float = 80,
     output_dir: str = "reports",
 ) -> tuple:
-    """
-    Run all sanitation checks and produce an annotated DataFrame + health report.
 
-    Parameters
-    ----------
-    df            : Raw Zomato delivery DataFrame
-    max_speed_kmh : Speed ceiling for anomaly detection (default: 80 km/h)
-    output_dir    : Directory for JSON health report
-
-    Returns
-    -------
-    (annotated_df, report_dict)
-    """
-    print("🔍 Step 1/4 — Detecting Null Island coordinates …")
+    print("Step 1 — Detecting Null Island coordinates.")
     df = detect_null_island(df)
-
-    print("🔍 Step 2/4 — Validating coordinate ranges …")
+    print("Step 2 — Validating coordinate ranges.")
     df = validate_coordinates(df)
-
-    print("🔍 Step 3/4 — Computing delivery speeds & flagging anomalies …")
+    print("Step 3 — Computing delivery speeds & flagging anomalies.")
     df = detect_speed_anomalies(df, max_speed_kmh=max_speed_kmh)
-
-    print("🔍 Step 4/4 — Scanning for missing critical fields …")
+    print("Step 4 — Scanning for missing critical fields.")
     df = detect_missing_fields(df)
-
-    print("📝 Generating health report …")
+    print("Generating health report.")
     report = generate_health_report(df, output_dir=output_dir)
 
     return df, report
