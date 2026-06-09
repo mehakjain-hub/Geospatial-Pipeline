@@ -2,10 +2,8 @@
 
 > Automated GPS anomaly detection for food delivery telemetry — built around the Zomato Delivery Operations Analytics Dataset.
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-17%20passing-brightgreen)](#running-tests)
 [![Dataset](https://img.shields.io/badge/dataset-Zomato%20Delivery%20Ops-orange)](https://www.kaggle.com/datasets/saurabhbadole/zomato-delivery-operations-analytics-dataset)
-[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#license)
 
 ---
 
@@ -139,7 +137,7 @@ Tests cover: Haversine correctness, symmetry, known distances (Mumbai–Pune); N
 ## Author
 
 **Mehak Jain** — M.Sc. Mathematics & Statistics, IIT Tirupati  
-[LinkedIn](https://www.linkedin.com/in/mehak-jain-901b7a229/) · [GitHub](https://github.com/mehakjain-hub)
+[GitHub](https://github.com/mehakjain-hub)
 
 ---
 
